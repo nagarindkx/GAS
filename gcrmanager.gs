@@ -158,7 +158,7 @@ function listCourseByStudent(){
     var response = Classroom.Courses.list(optionalArgs);
       if (ss.getSheetByName(students[s]) == null) {
         var studentSheet = ss.setActiveSheet(ss.insertSheet(students[s]));
-        getUserProfiles(students[m], studentSheet);
+        getUserProfiles(students[s], studentSheet);
         listCoursesReport(optionalArgs, studentSheet);      
       }
   }  
