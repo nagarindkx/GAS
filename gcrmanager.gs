@@ -5,7 +5,18 @@
 *    Hat Yai, Songkhla, THAILAND
 *  Create Date: 2015-09-08
 *  Website: http://sysadmin.psu.ac.th/author/kanakorn-h/
+*  Base on original demo code of Classroom API
+*  https://developers.google.com/classroom/quickstart/apps-script
 */
+
+function onOpen() {
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('GCR Manager')
+      .addItem('List All Courses', 'listAllCourses')
+      .addItem('List by Selected Teachers', 'listCourseByTeacher')
+      .addItem('List by Selected Students', 'listCourseByStudent')
+      .addToUi();
+}
 
 function listAllCourses() {
   var ss=SpreadsheetApp.getActiveSpreadsheet();
@@ -152,3 +163,4 @@ function listCourseByStudent(){
       }
   }  
 }
+
