@@ -1,1 +1,368 @@
+function createCourses() {
+  var sheet = SpreadsheetApp.getActiveSheet();
+  var selectRange = sheet.getActiveRange();
+  var r = selectRange.getRow();
+  var c = selectRange.getColumn();
+  var h = selectRange.getHeight();
+  var w = selectRange.getWidth();
+  var values = selectRange.getValues();
 
+  for (var i = 0; i< h ; i++) {
+    var resource = {
+        "name": values[i][0],
+        "section": values[i][1],
+        "descriptionHeading": values[i][2],
+        "description": values[i][3],
+        "room": values[i][4],
+        "ownerId": values[i][5],
+        "courseState" : "ACTIVE"
+    };    
+    
+    var response = Classroom.Courses.create(resource);        
+    sheet.getRange(r+i, c + w ).setValue(response.id);  
+  }    
+}
+
+function deleteCourses() {
+  var sheet = SpreadsheetApp.getActiveSheet();
+  var selectRange = sheet.getActiveRange();
+  var r = selectRange.getRow();
+  var c = selectRange.getColumn();
+  var h = selectRange.getHeight();
+  var w = selectRange.getWidth();
+  var values = selectRange.getValues();
+  
+  for (var i = 0 ; i < h ; i++){
+    var id = values[i][0];
+    var response = Classroom.Courses.remove(id);
+    sheet.getRange(r+i, c + w ).setValue("Deleted");  
+  }
+}
+
+function addCoursesCoTeacher() {
+  var sheet = SpreadsheetApp.getActiveSheet();
+  var selectRange = sheet.getActiveRange();
+  var r = selectRange.getRow();
+  var c = selectRange.getColumn();
+  var h = selectRange.getHeight();
+  var w = selectRange.getWidth();
+  var values = selectRange.getValues();
+  
+  for (var i = 0 ; i < h ; i++){
+    var courseId = values[i][0];
+    var coTeacher = values[i][1];
+    var resource = {
+      "userId" : coTeacher
+    }
+    var response = Classroom.Courses.Teachers.create(resource, courseId);
+    sheet.getRange(r+i, c + w ).setValue("Added");  
+  }
+}
+
+function addCoursesStudents() {
+  var sheet = SpreadsheetApp.getActiveSheet();
+  var selectRange = sheet.getActiveRange();
+  var r = selectRange.getRow();
+  var c = selectRange.getColumn();
+  var h = selectRange.getHeight();
+  var w = selectRange.getWidth();
+  var values = selectRange.getValues();
+  
+  for (var i = 0 ; i < h ; i++){
+    var courseId = values[i][0];
+    var student = values[i][1];
+    var resource = {
+      "userId" : student
+    }
+    
+    try {
+      var response = Classroom.Courses.Students.create(resource, courseId);      
+      sheet.getRange(r+i, c + w ).setValue("Added");  
+    } catch (e) {
+      sheet.getRange(r+i, c + w ).setValue(e.message);  
+    }
+  }
+}
+
+function listCoursesByTeachers() {
+
+  var sheet = SpreadsheetApp.getActiveSheet();
+  var selectRange = sheet.getActiveRange();
+  var r = selectRange.getRow();
+  var c = selectRange.getColumn();
+  var h = selectRange.getHeight();
+  var w = selectRange.getWidth();
+  var values = selectRange.getValues();
+
+  var ss=SpreadsheetApp.getActiveSpreadsheet();
+  newSheet=ss.insertSheet();
+  scriptProperties.setProperty("ResultSheet", newSheet.getSheetName());
+  
+      var header=[[
+        "id",
+        "name",
+        "section",
+        "descriptionHeading",
+        "description",
+        "room",
+        "ownerId",
+        "creationTime",
+        "updateTime",
+        "enrollmentCode",
+        "courseState",
+        "alternateLink",
+        "OwnerEmail",
+        "StudentCount"
+    ]];
+    newSheet.getRange(1, 1, 1,14).setValues(header);         
+
+    
+    var blockr=2;
+    
+    
+    for (var t = 0 ; t < h ; t++){ // for each teacherID
+        Logger.log(
+          " r:" + r +
+          " c:" + c +
+          " h:" + h +
+          " w:" + w 
+        );
+        var nextPageToken="";
+        var teacherId = values[t][0];    
+        do {
+            try {
+               var optionalArgs = {
+                       teacherId: teacherId,
+                       pageSize: 500,
+                       pageToken: nextPageToken
+                };  
+            } catch (e) {
+                var ui = SpreadsheetApp.getUi();
+                ui.alert("Error 100110: Something went wrong \n" + e.message, ui.ButtonSet.OK);
+            }
+          
+            try{
+              var response = Classroom.Courses.list(optionalArgs);
+            } catch (e) {
+              if (e.message.search("@NotGoogleAppsUser") >= 0) {
+                var ui = SpreadsheetApp.getUi();
+                ui.alert("Sorry, please login with Google Apps for Education account.", ui.ButtonSet.OK)
+              } else {
+                ui.alert(e.message, ui.ButtonSet.OK)
+              }
+              return;
+            }       
+    
+        var courses = response.courses;    
+        var arr=[];
+        for(i=0;i<courses.length;i++){
+          arr[i]=[
+              courses[i].id,
+              courses[i].name,
+              courses[i].section,
+              courses[i].descriptionHeading,
+              courses[i].description,
+              courses[i].room,
+              courses[i].ownerId,
+              courses[i].creationTime,
+              courses[i].updateTime,
+              courses[i].enrollmentCode,
+              courses[i].courseState,
+              courses[i].alternateLink,
+              teacherId,
+              "Wait"
+          ]
+        }      
+          newSheet.getRange(blockr, 1, arr.length, 14).setValues(arr);    
+          blockr=blockr+arr.length;
+          nextPageToken = response.nextPageToken ;
+          //sheet.appendRow([nextPageToken]);
+        } while (nextPageToken != undefined);
+    } // for each teacherID
+  
+  
+}
+var scriptProperties = PropertiesService.getScriptProperties();
+var newSheet;
+
+function onOpen() {
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('GCR Manager')
+      .addItem('List All Courses', 'listAllCourses')
+      .addItem('Resume owner and students count task', 'fillOwnerEmailAndStudentCount')
+      .addItem('Create Courses', 'createCourses')
+      .addItem('Delete Courses', 'deleteCourses')
+      .addItem('Add Co-Teachers to course', 'addCoursesCoTeacher')
+      .addItem('Add Students to course', 'addCoursesStudents')
+      .addSeparator()
+      .addItem('List Courses by teachers', 'listCoursesByTeachers' )
+      .addToUi();
+}
+
+function listAllCourses() {
+  var ss=SpreadsheetApp.getActiveSpreadsheet();
+  newSheet=ss.insertSheet();
+  scriptProperties.setProperty("ResultSheet", newSheet.getSheetName());
+  listCourseIDs();  
+}
+
+
+function listCourseIDs() {    
+    var header=[[
+        "id",
+        "name",
+        "section",
+        "descriptionHeading",
+        "description",
+        "room",
+        "ownerId",
+        "creationTime",
+        "updateTime",
+        "enrollmentCode",
+        "courseState",
+        "alternateLink",
+        "OwnerEmail",
+        "StudentCount"
+    ]];
+    newSheet.getRange(1, 1, 1,14).setValues(header);     
+    
+    
+    var nextPageToken="";
+    var r=2;
+    do {
+        try {
+           var optionalArgs = {
+                   pageSize: 500,
+                   pageToken: nextPageToken
+            };  
+        } catch (e) {
+            var ui = SpreadsheetApp.getUi();
+            ui.alert("Error 100110: Something went wrong \n" + e.message, ui.ButtonSet.OK);
+        }
+      
+        try{
+          var response = Classroom.Courses.list(optionalArgs);
+        } catch (e) {
+          if (e.message.search("@NotGoogleAppsUser") >= 0) {
+            var ui = SpreadsheetApp.getUi();
+            ui.alert("Sorry, please login with Google Apps for Education account.", ui.ButtonSet.OK)
+          } else {
+            ui.alert(e.message, ui.ButtonSet.OK)
+          }
+          return;
+        }       
+
+    var courses = response.courses;    
+    var arr=[];
+    for(i=0;i<courses.length;i++){
+      arr[i]=[
+          courses[i].id,
+          courses[i].name,
+          courses[i].section,
+          courses[i].descriptionHeading,
+          courses[i].description,
+          courses[i].room,
+          courses[i].ownerId,
+          courses[i].creationTime,
+          courses[i].updateTime,
+          courses[i].enrollmentCode,
+          courses[i].courseState,
+          courses[i].alternateLink,
+          "Wait",
+          "Wait"
+      ]
+    }      
+      newSheet.getRange(r, 1, arr.length, 14).setValues(arr);    
+      r=r+arr.length;
+      nextPageToken = response.nextPageToken ;
+      //sheet.appendRow([nextPageToken]);
+    } while (nextPageToken != undefined);
+    
+    fillOwnerEmailAndStudentCount();
+}
+
+function fillOwnerEmailAndStudentCount(){
+  var sheetname=scriptProperties.getProperty("ResultSheet");
+  var ss=SpreadsheetApp.getActiveSpreadsheet();
+  var thesheet = SpreadsheetApp.setActiveSheet(ss.getSheetByName(sheetname));
+  //var thesheet = SpreadsheetApp.setActiveSheet(ss.getSheetByName("Sheet99"));
+  var Courses=thesheet.getRange("A:A").getValues();
+  var IDs=thesheet.getRange("G:G").getValues();
+  var ownerEmails=thesheet.getRange("M:M").getValues();
+  var studentCounts=thesheet.getRange("N:N").getValues();
+  
+  
+  
+  for (i=0;i<ownerEmails.length;i++) {
+    try {
+        if(ownerEmails[i][0] == "Wait") {
+          var ownerEmail = Classroom.UserProfiles.get(IDs[i][0]).emailAddress;                 
+            thesheet.getRange((i+1), 13).setValue([ownerEmail]);
+          
+        } else {          
+          thesheet.getRange((i+1), 13).setValue([ownerEmails[i][0]]);
+          
+        }
+     } catch (e) {
+          Logger.log("Catch " + i + " " + e.message);
+          thesheet.getRange((i+1), 13).setValue(["User Not Existed"]);   
+     }
+      try {   
+        if(studentCounts[i][0] == "Wait"){
+          var course_id = Courses[i][0];
+          var total=0;
+          var nextPageToken="";
+            do {
+                  var optionalArgs = {
+                           pageSize: 0,
+                           pageToken: nextPageToken
+                    };  
+                  var response = Classroom.Courses.Students.list(course_id,optionalArgs);
+                total = total + response.students.length;
+                nextPageToken = response.nextPageToken;
+            } while (nextPageToken != undefined);
+          var studentCount = total;        
+          //var studentCount = Classroom.Courses.Students.list(Courses[i][0]).students.length;
+          thesheet.getRange((i+1), 14).setValue([studentCount]);
+        } else {
+          thesheet.getRange((i+1), 14).setValue([studentCounts[i][0]]);          
+        }        
+      } catch (e) {
+          Logger.log("Catch " + i + " " + e.message);
+          thesheet.getRange((i+1), 14).setValue([0]);
+        
+      }
+      SpreadsheetApp.flush();
+  }
+}
+function addUsers() {
+  var sheet = SpreadsheetApp.getActiveSheet();
+  var firstRow = 11;
+  var lastRow  = 77;
+    for (i=firstRow  ;   i<=lastRow  ;  i++) {
+      if (sheet.getRange(i, 6).getValue() == '') {
+        var email     = sheet.getRange(i, 1).getValue(); 
+        var firstname = sheet.getRange(i, 2).getValue();
+        var lastname  = sheet.getRange(i, 3).getValue();
+        var ou        = sheet.getRange(i, 4).getValue();
+        var password  = sheet.getRange(i, 5).getValue();    
+        var user = {
+          primaryEmail: email,
+          name: {
+            givenName: firstname,
+            familyName: lastname
+          },
+          password: password,
+          orgUnitPath : ou
+        };
+        
+        try {
+          user = AdminDirectory.Users.insert(user);
+          var timestamp = new Date();
+          sheet.getRange(i, 6).setValue(timestamp);
+        } catch (e) {
+          sheet.getRange(i, 6).setValue(e);
+        }
+      } // if
+    } // for
+}
